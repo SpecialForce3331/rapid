@@ -18,6 +18,7 @@ import javax.servlet.http.HttpSession;
 import javax.servlet.http.Part;
 
 import org.apache.log4j.Logger;
+import org.json.JSONObject;
 
 
 @WebServlet(name = "Uploader", urlPatterns = {"/upload"})
@@ -34,14 +35,16 @@ public class Uploader extends HttpServlet
 		org.apache.log4j.BasicConfigurator.configure();
 	}
 	
-	protected void doGet(HttpServletRequest request, HttpServletResponse response)
+	protected void doGet(HttpServletRequest request, HttpServletResponse response) throws IOException
 	{
         session = request.getSession();
         session.setAttribute("user", "Pankaj");
         if ( request.getRequestURI().equals( "/getProgress" ))
         {
-        	response.setContentType("text/html;charset=UTF-8");
-        	
+        	response.setContentType("application/json;charset=UTF-8");
+        	JSONObject json = new JSONObject();
+        	json.append("progress", progress);
+        	response.getOutputStream().println(json.toString());
         }
 	}
 	
