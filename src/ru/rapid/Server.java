@@ -107,6 +107,8 @@ public class Server extends HttpServlet
 		    } 
 		    finally 
 		    {
+		    	progress = 0;
+		    	
 		        if (out != null) {
 		            out.close();
 		        }
