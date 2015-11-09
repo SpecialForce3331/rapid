@@ -1,6 +1,6 @@
 CREATE DATABASE IF NOT EXISTS rapid DEFAULT CHARACTER SET utf8 DEFAULT COLLATE utf8_general_ci;
 
-GRANT ALL PRIVILEGES ON rapid.* TO 'rapid'@'localhost';
+GRANT ALL PRIVILEGES ON rapid.* TO 'rapid'@'localhost' IDENTIFIED BY '123456';
 
 USE rapid;
 

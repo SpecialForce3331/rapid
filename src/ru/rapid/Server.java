@@ -1,6 +1,7 @@
 package ru.rapid;
 
 import java.io.File;
+import java.io.FileInputStream;
 import java.io.FileNotFoundException;
 import java.io.FileOutputStream;
 import java.io.IOException;
@@ -12,6 +13,7 @@ import java.util.Random;
 
 import javax.servlet.RequestDispatcher;
 import javax.servlet.ServletException;
+import javax.servlet.ServletOutputStream;
 import javax.servlet.annotation.MultipartConfig;
 import javax.servlet.annotation.WebServlet;
 import javax.servlet.http.HttpServlet;
@@ -21,19 +23,20 @@ import javax.servlet.http.HttpSession;
 import javax.servlet.http.Part;
 
 import org.apache.log4j.Logger;
+import org.apache.tomcat.util.http.fileupload.IOUtils;
 import org.json.JSONObject;
 
 
-@WebServlet(name = "Uploader", urlPatterns = {"/*"})
+@WebServlet("/")
 @MultipartConfig
 public class Server extends HttpServlet
 {
 	final static Logger logger = Logger.getLogger(Server.class);
 	private int progress = 0;
-	private HttpSession session;
 	private final String path = "/tmp";
 	private Mysql mysql;
 	private Ldap ldap;
+	private String prefix = "/rapid";
 	
 	public Server() throws ClassNotFoundException, FileNotFoundException, SQLException
 	{
@@ -42,30 +45,67 @@ public class Server extends HttpServlet
 		ldap = new Ldap();
 	}
 	
-	protected void doGet(HttpServletRequest request, HttpServletResponse response) throws IOException
+	protected void doGet(HttpServletRequest request, HttpServletResponse response) throws IOException, ServletException
 	{
-		if ( request.getRequestURI().equals( "/" ) )
+		HttpSession session = request.getSession();
+		logger.debug(request.getRequestURI());
+		
+		if ( request.getRequestURI().startsWith(prefix + "/download/"))
 		{
+			int number = Integer.parseInt(request.getRequestURI().split(prefix + "/download/")[1]);
+			try {
+				String file = mysql.getFileByNumber(number);
+				FileInputStream fileStream = new FileInputStream(path + "/" + file);
+				ServletOutputStream outputStream = response.getOutputStream();
+				
+				response.setHeader("Content-Disposition", "attachment; filename=\"" + file + "\"");
+				
+				IOUtils.copy(fileStream, outputStream);
+				outputStream.flush();
+				
+				outputStream.close(); // depends on your application
+			} catch (SQLException e) {
+				response.setContentType("text/html;charset=UTF-8");
+				response.getWriter().println(e.getMessage());
+			}
 			
 		}
-        session = request.getSession();
-        
-        logger.debug(request.getRequestURI());
-        if ( request.getRequestURI().equals( "/rapid/upload/progress" ))
-        {
-        	response.setContentType("application/json;charset=UTF-8");
-        	JSONObject json = new JSONObject();
-        	json.append("progress", progress);
-        	PrintWriter writer = response.getWriter();
-        	writer.print(json);
-        }
+		else if ( session.getAttribute("authorized") != null && (boolean)session.getAttribute("authorized") )
+		{
+			if ( request.getRequestURI().equals( prefix + "/"))
+			{
+				response.sendRedirect( prefix + "/upload");
+			}
+			else if ( request.getRequestURI().equals( prefix + "/upload") )
+			{
+				RequestDispatcher rd = request.getRequestDispatcher( "/upload.jsp" );
+				rd.forward( request, response );
+			}
+			else if ( request.getRequestURI().equals( prefix + "/upload/progress" ))
+	        {
+	        	response.setContentType("application/json;charset=UTF-8");
+	        	JSONObject json = new JSONObject();
+	        	json.append("progress", progress);
+	        	PrintWriter writer = response.getWriter();
+	        	writer.print(json);
+	        }
+		}
+		else if ( request.getRequestURI().equals( prefix + "/") )
+		{
+			RequestDispatcher rd = request.getRequestDispatcher( "/index.jsp" );
+			rd.forward( request, response );
+		}
 	}
 	
-	protected void doPost(HttpServletRequest request,
-	        HttpServletResponse response)
-	        throws ServletException, IOException 
+	protected void doPost(HttpServletRequest request, HttpServletResponse response) throws ServletException, IOException 
 	{
-		if ( request.getRequestURI().equals( "/rapid/upload/login" ) )
+		logger.debug(request.getRequestURI());
+		request.setCharacterEncoding("UTF-8");
+		response.setCharacterEncoding("UTF-8");
+		
+		HttpSession session = request.getSession();
+		
+		if ( request.getRequestURI().equals( prefix + "/login" ) )
 		{
 			String login = request.getParameter( "login" );
 			String password = request.getParameter( "password" );
@@ -73,14 +113,18 @@ public class Server extends HttpServlet
 			{
 				if( ldap.auth( login, password ) )
 				{
-					HttpSession session = request.getSession();
 					session.setAttribute( "authorized", true );
-					RequestDispatcher rd = request.getRequestDispatcher( "/index.html" );
-					rd.forward( request, response );
+					session.setAttribute("login", login);
+					response.sendRedirect(prefix + "/upload");
+				}
+				else
+				{
+					response.setContentType("text/html;charset=UTF-8");
+					response.getWriter().println("Вы указали не правильные логин или пароль! \n" + "<a href='/rapid'>Попробовать еще раз</a>");
 				}
 			}
 		}
-		else if ( request.getRequestURI().equals( "/rapid/upload" ))
+		else if ( request.getRequestURI().equals( prefix + "/upload" ))
 		{
 		    response.setContentType("text/html;charset=UTF-8");
 
@@ -104,14 +148,14 @@ public class Server extends HttpServlet
 		        int bufferSize = 1024;
 		        final byte[] bytes = new byte[bufferSize];
 		        
-		        logger.debug( "Session is null? -" + Boolean.valueOf(session==null).toString());
+		        logger.debug( "Session is null? -" + Boolean.valueOf(session == null).toString());
 		        
 		        while (( read = filecontent.read(bytes) ) != -1 ) 
 		        {
 		            out.write(bytes, 0, read);
 		            readed += read;
 		            logger.info( "File size: " + String.valueOf( fileSize ));
-		            session = request.getSession();
+
 		            if ( session != null )
 		            {
 		            	progress = getProgressPercent((int) fileSize, readed);
@@ -121,14 +165,11 @@ public class Server extends HttpServlet
 		        }
 		        writer.println("New file " + fileName + " created at " + path);
 		        logger.info( "File "+fileName+" being uploaded." );
-		        Random random = new Random();
-		        random.setSeed( 100000 );
-		        logger.info( generateRandom(6) );
 		        
-		        mysql.addFile( fileName, fileSize, whoUpload, random );
+		        mysql.addFile( fileName, (int) fileSize, (String)session.getAttribute("login"), generateRandom(6) );
 		        
 		    } 
-		    catch (FileNotFoundException fne) 
+		    catch (FileNotFoundException | SQLException fne) 
 		    {
 		        writer.println("You either did not specify a file to upload or are "
 		                + "trying to upload a file to a protected or nonexistent "

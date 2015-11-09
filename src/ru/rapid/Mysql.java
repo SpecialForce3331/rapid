@@ -3,6 +3,7 @@ package ru.rapid;
 import java.io.FileNotFoundException;
 import java.sql.Connection;
 import java.sql.DriverManager;
+import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.sql.Statement;
 import java.util.Properties;
@@ -15,12 +16,11 @@ import java.sql.PreparedStatement;
 public class Mysql
 {
 	private final String JDBC_DRIVER = "com.mysql.jdbc.Driver";
-	private static String mysqlHost = "jdbc:mysql://localhost/findrepair";
+	private static String mysqlHost = "jdbc:mysql://localhost/rapid";
 
-	private static String login;
-	private static String password;
+	private static String login = "rapid";
+	private static String password = "123456";
 	
-	private Statement stmt;
 	private Connection conn;
 	private Properties mysqlProp;
 	
@@ -29,7 +29,7 @@ public class Mysql
 	
 	public Mysql() throws ClassNotFoundException, SQLException, FileNotFoundException
 	{
-		Class.forName("com.mysql.jdbc.Driver");
+		Class.forName(JDBC_DRIVER);
 		
 		mysqlProp = new Properties();
 		mysqlProp.put("user", login);
@@ -43,10 +43,27 @@ public class Mysql
 	{
 		conn = DriverManager.getConnection(mysqlHost, mysqlProp);
 		PreparedStatement ps = conn.prepareStatement( "INSERT INTO files (random, file, who, size) VALUES (?,?,?,?)" );
-		ps.setInt( 0, random );
-		ps.setString( 1, fileName );
-		ps.setString( 2, whoUpload );
-		ps.setInt( 3, random );
+		ps.setInt( 1, random );
+		ps.setString( 2, fileName );
+		ps.setString( 3, whoUpload );
+		ps.setInt( 4, random );
 		ps.executeUpdate();
+	}
+	
+	public String getFileByNumber(int number) throws SQLException, FileNotFoundException 
+	{
+		conn = DriverManager.getConnection(mysqlHost, mysqlProp);
+		PreparedStatement ps = conn.prepareStatement( "SELECT file FROM files WHERE random = ?" );
+		ps.setInt( 1, number );
+		ResultSet rs = ps.executeQuery();
+		
+		if ( rs.next() )
+		{
+			return rs.getString("file");
+		}
+		else
+		{
+			throw new FileNotFoundException("File in DB not found");
+		}
 	}
 }
