@@ -7,7 +7,10 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
 import java.io.PrintWriter;
+import java.sql.SQLException;
+import java.util.Random;
 
+import javax.servlet.RequestDispatcher;
 import javax.servlet.ServletException;
 import javax.servlet.annotation.MultipartConfig;
 import javax.servlet.annotation.WebServlet;
@@ -21,23 +24,32 @@ import org.apache.log4j.Logger;
 import org.json.JSONObject;
 
 
-@WebServlet(name = "Uploader", urlPatterns = {"/upload/*"})
+@WebServlet(name = "Uploader", urlPatterns = {"/*"})
 @MultipartConfig
 public class Server extends HttpServlet
 {
 	final static Logger logger = Logger.getLogger(Server.class);
 	private int progress = 0;
 	private HttpSession session;
-	private final String path = "E:\\test";
+	private final String path = "/tmp";
+	private Mysql mysql;
+	private Ldap ldap;
 	
-	public Server()
+	public Server() throws ClassNotFoundException, FileNotFoundException, SQLException
 	{
 		org.apache.log4j.BasicConfigurator.configure();
+		mysql = new Mysql();
+		ldap = new Ldap();
 	}
 	
 	protected void doGet(HttpServletRequest request, HttpServletResponse response) throws IOException
 	{
+		if ( request.getRequestURI().equals( "/" ) )
+		{
+			
+		}
         session = request.getSession();
+        
         logger.debug(request.getRequestURI());
         if ( request.getRequestURI().equals( "/rapid/upload/progress" ))
         {
@@ -53,7 +65,22 @@ public class Server extends HttpServlet
 	        HttpServletResponse response)
 	        throws ServletException, IOException 
 	{
-		if ( request.getRequestURI().equals( "/rapid/upload" ))
+		if ( request.getRequestURI().equals( "/rapid/upload/login" ) )
+		{
+			String login = request.getParameter( "login" );
+			String password = request.getParameter( "password" );
+			if ( login != null && !login.isEmpty() && password != null && !password.isEmpty() )
+			{
+				if( ldap.auth( login, password ) )
+				{
+					HttpSession session = request.getSession();
+					session.setAttribute( "authorized", true );
+					RequestDispatcher rd = request.getRequestDispatcher( "/index.html" );
+					rd.forward( request, response );
+				}
+			}
+		}
+		else if ( request.getRequestURI().equals( "/rapid/upload" ))
 		{
 		    response.setContentType("text/html;charset=UTF-8");
 
@@ -94,6 +121,11 @@ public class Server extends HttpServlet
 		        }
 		        writer.println("New file " + fileName + " created at " + path);
 		        logger.info( "File "+fileName+" being uploaded." );
+		        Random random = new Random();
+		        random.setSeed( 100000 );
+		        logger.info( generateRandom(6) );
+		        
+		        mysql.addFile( fileName, fileSize, whoUpload, random );
 		        
 		    } 
 		    catch (FileNotFoundException fne) 
@@ -139,5 +171,19 @@ public class Server extends HttpServlet
 	private int getProgressPercent(int fileSize, int readedByte)
 	{
 		return readedByte/(fileSize/100);
+	}
+	
+	private int generateRandom( int length )
+	{
+		Random r = new Random();  
+  
+		StringBuilder number = new StringBuilder();  
+		
+        int counter=0;  
+  
+        while(counter++< length) number.append( r.nextInt(9) );  
+  
+        return Integer.parseInt(number.toString());  
+	  
 	}
 }
