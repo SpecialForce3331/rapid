@@ -120,7 +120,7 @@ public class Server extends HttpServlet
 				else
 				{
 					response.setContentType("text/html;charset=UTF-8");
-					response.getWriter().println("Вы указали не правильные логин или пароль! \n" + "<a href='/rapid'>Попробовать еще раз</a>");
+					response.getWriter().println("Р’С‹ РІРІРµР»Рё РЅРµ РІРµСЂРЅС‹Рµ Р»РѕРіРёРЅ РёР»Рё РїР°СЂРѕР»СЊ \n" + "<a href='/rapid'>РџРѕРїСЂРѕР±РѕРІР°С‚СЊ РµС‰Рµ СЂР°Р·</a>");
 				}
 			}
 		}
