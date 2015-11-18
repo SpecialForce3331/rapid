@@ -1,14 +1,17 @@
 package ru.rapid;
 
+import java.io.BufferedReader;
 import java.io.File;
 import java.io.FileInputStream;
 import java.io.FileNotFoundException;
 import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
+import java.io.InputStreamReader;
 import java.io.OutputStream;
 import java.io.PrintWriter;
 import java.sql.SQLException;
+import java.util.Calendar;
 import java.util.Random;
 
 import javax.servlet.RequestDispatcher;
@@ -131,6 +134,7 @@ public class Server extends HttpServlet
 		    final Part filePart = request.getPart("file");
 		    final String fileName = getFileName(filePart);
 		    final long fileSize = filePart.getSize();
+		    final int hours = Integer.parseInt( request.getParameter( "hours" ) );
 
 		    OutputStream out = null;
 		    InputStream filecontent = null;
@@ -168,6 +172,31 @@ public class Server extends HttpServlet
 		        
 		        mysql.addFile( fileName, (int) fileSize, (String)session.getAttribute("login"), generateRandom(6) );
 		        
+		        logger.debug( Calendar.getInstance().get( Calendar.HOUR_OF_DAY ) );
+		        logger.debug( "echo 'rm " + path + "/" + fileName + "' | at now +" + hours + " minute" );
+		        
+		        String s = null;
+		        
+		        String command[] = {"/bin/bash", "-c", "/bin/echo \"rm " + path + "/" + fileName + "\" | at now +" + hours + " hours"};
+		        Process p = Runtime.getRuntime().exec(command);
+		        
+            	BufferedReader stdInput = new BufferedReader(new
+            			InputStreamReader(p.getInputStream()));
+	    
+            	BufferedReader stdError = new BufferedReader(new
+	                    InputStreamReader(p.getErrorStream()));
+	    
+				// read the output from the command
+				System.out.println("Here is the standard output of the command:\n");
+				while ((s = stdInput.readLine()) != null) {
+				    logger.debug(s);
+				}
+				    
+				// read any errors from the attempted command
+				System.out.println("Here is the standard error of the command (if any):\n");
+				while ((s = stdError.readLine()) != null) {
+					logger.error(s);
+				}
 		    } 
 		    catch (FileNotFoundException | SQLException fne) 
 		    {
@@ -193,7 +222,6 @@ public class Server extends HttpServlet
 		        }
 		    }
 		}
-
 	}
 
 	private String getFileName(final Part part) {
@@ -225,6 +253,5 @@ public class Server extends HttpServlet
         while(counter++< length) number.append( r.nextInt(9) );  
   
         return Integer.parseInt(number.toString());  
-	  
 	}
 }

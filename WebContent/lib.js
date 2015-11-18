@@ -1,3 +1,7 @@
+$(document).ready(function() {
+	$('select').material_select();
+});
+
 function getProgress()
 {
 	$.get("/rapid/upload/progress", function(data){

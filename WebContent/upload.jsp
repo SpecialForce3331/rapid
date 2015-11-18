@@ -23,6 +23,15 @@
 			        <input class="file-path validate" type="text">
 			      </div>
 			    </div>
+				<div class="input-field col s12">
+				  <select name="hours">
+				    <option value="1" selected>1 час</option>
+				    <option value="5">5 часов</option>
+				    <option value="10">10 часов</option>
+				    <option value="24">24 часа</option>
+				  </select>
+				  <label>Сколько часов хранить</label>
+				</div>
 			    <button class="btn waves-effect waves-light btn-margin" type="submit" name="action">Загрузить
 				  <i class="material-icons right">send</i>
 				</button>
