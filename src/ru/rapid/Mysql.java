@@ -39,15 +39,28 @@ public class Mysql
 		mysqlProp.put("characterEncoding", "utf-8");
 	}
 	
-	public void addFile(String fileName, int fileSize, String whoUpload, int random) throws SQLException
+	public int addFile(String fileName, int fileSize, String whoUpload, int random) throws SQLException
 	{
 		conn = DriverManager.getConnection(mysqlHost, mysqlProp);
-		PreparedStatement ps = conn.prepareStatement( "INSERT INTO files (random, file, who, size) VALUES (?,?,?,?)" );
+		PreparedStatement ps = conn.prepareStatement( "INSERT INTO files (random, file, who, size) VALUES (?,?,?,?)", Statement.RETURN_GENERATED_KEYS );
 		ps.setInt( 1, random );
 		ps.setString( 2, fileName );
 		ps.setString( 3, whoUpload );
 		ps.setInt( 4, random );
 		ps.executeUpdate();
+		
+		int id;
+		
+        try (ResultSet generatedKeys = ps.getGeneratedKeys()) {
+            if (generatedKeys.next()) {
+                id = (int) generatedKeys.getLong(1);
+            }
+            else {
+                throw new SQLException("No ID obtained.");
+            }
+        }
+        
+		return id;
 	}
 	
 	public String getFileByNumber(int number) throws SQLException, FileNotFoundException 
@@ -65,5 +78,13 @@ public class Mysql
 		{
 			throw new FileNotFoundException("File in DB not found");
 		}
+	}
+	
+	public void removeFile(int id) throws SQLException
+	{
+		conn = DriverManager.getConnection(mysqlHost, mysqlProp);
+		PreparedStatement ps = conn.prepareStatement( "DELETE FROM files WHERE id = ?" );
+		ps.setInt( 1, id );
+		ps.executeUpdate();
 	}
 }

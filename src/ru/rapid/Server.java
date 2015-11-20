@@ -98,6 +98,19 @@ public class Server extends HttpServlet
 			RequestDispatcher rd = request.getRequestDispatcher( "/index.jsp" );
 			rd.forward( request, response );
 		}
+		else if ( request.getRequestURI().startsWith( prefix + "/delete/" ) && request.getRemoteAddr().equals( "127.0.0.1" ))
+		{
+			Integer id = Integer.parseInt( request.getParameter( "id" ) );
+			logger.debug( id );
+			try
+			{
+				mysql.removeFile( id );
+			}
+			catch ( SQLException e )
+			{
+				e.printStackTrace();
+			}
+		}
 	}
 	
 	protected void doPost(HttpServletRequest request, HttpServletResponse response) throws ServletException, IOException 
@@ -170,14 +183,14 @@ public class Server extends HttpServlet
 		        writer.println("New file " + fileName + " created at " + path);
 		        logger.info( "File "+fileName+" being uploaded." );
 		        
-		        mysql.addFile( fileName, (int) fileSize, (String)session.getAttribute("login"), generateRandom(6) );
+		        int fileId = mysql.addFile( fileName, (int) fileSize, (String)session.getAttribute("login"), generateRandom(6) );
 		        
 		        logger.debug( Calendar.getInstance().get( Calendar.HOUR_OF_DAY ) );
 		        logger.debug( "echo 'rm " + path + "/" + fileName + "' | at now +" + hours + " minute" );
 		        
 		        String s = null;
 		        
-		        String command[] = {"/bin/bash", "-c", "/bin/echo \"rm " + path + "/" + fileName + "\" | at now +" + hours + " hours"};
+		        String command[] = {"/bin/bash", "-c", "/bin/echo \"rm " + path + "/" + fileName + " && wget -q --spider http://localhost:8080/rapid/delete/?id="+ fileId +"\" | at now +" + hours + " hours"};
 		        Process p = Runtime.getRuntime().exec(command);
 		        
             	BufferedReader stdInput = new BufferedReader(new
