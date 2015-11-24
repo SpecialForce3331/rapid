@@ -58,6 +58,9 @@ public class Server extends HttpServlet
 			int number = Integer.parseInt(request.getRequestURI().split(prefix + "/download/")[1]);
 			try {
 				String file = mysql.getFileByNumber(number);
+				
+				logger.debug( file );
+				
 				FileInputStream fileStream = new FileInputStream(path + "/" + file);
 				ServletOutputStream outputStream = response.getOutputStream();
 				
@@ -72,6 +75,24 @@ public class Server extends HttpServlet
 				response.getWriter().println(e.getMessage());
 			}
 			
+		}
+		else if ( request.getRequestURI().equals( prefix + "/") )
+		{
+			RequestDispatcher rd = request.getRequestDispatcher( "/index.jsp" );
+			rd.forward( request, response );
+		}
+		else if ( request.getRequestURI().startsWith( prefix + "/delete/" ) && request.getRemoteAddr().equals( "127.0.0.1" ))
+		{
+			Integer id = Integer.parseInt( request.getParameter( "id" ) );
+			logger.debug( id );
+			try
+			{
+				mysql.removeFile( id );
+			}
+			catch ( SQLException e )
+			{
+				e.printStackTrace();
+			}
 		}
 		else if ( session.getAttribute("authorized") != null && (boolean)session.getAttribute("authorized") )
 		{
@@ -93,23 +114,10 @@ public class Server extends HttpServlet
 	        	writer.print(json);
 	        }
 		}
-		else if ( request.getRequestURI().equals( prefix + "/") )
+		else
 		{
 			RequestDispatcher rd = request.getRequestDispatcher( "/index.jsp" );
 			rd.forward( request, response );
-		}
-		else if ( request.getRequestURI().startsWith( prefix + "/delete/" ) && request.getRemoteAddr().equals( "127.0.0.1" ))
-		{
-			Integer id = Integer.parseInt( request.getParameter( "id" ) );
-			logger.debug( id );
-			try
-			{
-				mysql.removeFile( id );
-			}
-			catch ( SQLException e )
-			{
-				e.printStackTrace();
-			}
 		}
 	}
 	
@@ -140,100 +148,103 @@ public class Server extends HttpServlet
 				}
 			}
 		}
-		else if ( request.getRequestURI().equals( prefix + "/upload" ))
+		else if ( session.getAttribute("authorized") != null && (boolean)session.getAttribute("authorized") )
 		{
-		    response.setContentType("text/html;charset=UTF-8");
+			if ( request.getRequestURI().equals( prefix + "/upload" ))
+			{
+			    response.setContentType("text/html;charset=UTF-8");
 
-		    final Part filePart = request.getPart("file");
-		    final String fileName = getFileName(filePart);
-		    final long fileSize = filePart.getSize();
-		    final int hours = Integer.parseInt( request.getParameter( "hours" ) );
+			    final Part filePart = request.getPart("file");
+			    final String fileName = getFileName(filePart);
+			    final long fileSize = filePart.getSize();
+			    final int hours = Integer.parseInt( request.getParameter( "hours" ) );
 
-		    OutputStream out = null;
-		    InputStream filecontent = null;
-		    final PrintWriter writer = response.getWriter();
+			    OutputStream out = null;
+			    InputStream filecontent = null;
+			    final PrintWriter writer = response.getWriter();
+			    
+			    try 
+			    {
+			        out = new FileOutputStream( new File(path + File.separator + fileName) );
+			        
+			        filecontent = filePart.getInputStream();
+			        logger.info( "File size: " + String.valueOf( fileSize ));
+			        
+			        int read = 0;
+			        int readed = 0;
+			        int bufferSize = 1024;
+			        final byte[] bytes = new byte[bufferSize];
+			        
+			        logger.debug( "Session is null? -" + Boolean.valueOf(session == null).toString());
+			        
+			        while (( read = filecontent.read(bytes) ) != -1 ) 
+			        {
+			            out.write(bytes, 0, read);
+			            readed += read;
+			            logger.info( "File size: " + String.valueOf( fileSize ));
+
+			            if ( session != null )
+			            {
+			            	progress = getProgressPercent((int) fileSize, readed);
+			            	logger.debug(progress);
+			            	session.setAttribute( "progress", progress );
+			            }
+			        }
+			        
+			        int random = generateRandom(6);
+			        int fileId = mysql.addFile( fileName, (int) fileSize, (String)session.getAttribute("login"), random );
+			        
+			        String s = null;
+			        
+			        String command[] = {"/bin/bash", "-c", "/bin/echo \"rm " + path + "/" + fileName + " && wget -q --spider http://localhost:8080/rapid/delete/?id="+ fileId +"\" | at now +" + hours + " hours"};
+			        Process p = Runtime.getRuntime().exec(command);
+			        
+	            	BufferedReader stdInput = new BufferedReader(new
+	            			InputStreamReader(p.getInputStream()));
 		    
-		    try 
-		    {
-		        out = new FileOutputStream( new File(path + File.separator + fileName) );
-		        
-		        filecontent = filePart.getInputStream();
-		        logger.info( "File size: " + String.valueOf( fileSize ));
-		        
-		        int read = 0;
-		        int readed = 0;
-		        int bufferSize = 1024;
-		        final byte[] bytes = new byte[bufferSize];
-		        
-		        logger.debug( "Session is null? -" + Boolean.valueOf(session == null).toString());
-		        
-		        while (( read = filecontent.read(bytes) ) != -1 ) 
-		        {
-		            out.write(bytes, 0, read);
-		            readed += read;
-		            logger.info( "File size: " + String.valueOf( fileSize ));
+	            	BufferedReader stdError = new BufferedReader(new
+		                    InputStreamReader(p.getErrorStream()));
+		    
+					// read the output from the command
+					System.out.println("Here is the standard output of the command:\n");
+					while ((s = stdInput.readLine()) != null) {
+					    logger.debug(s);
+					}
+					    
+					// read any errors from the attempted command
+					System.out.println("Here is the standard error of the command (if any):\n");
+					while ((s = stdError.readLine()) != null) {
+						logger.error(s);
+					}
+					
+			        writer.println("Файл успешно загружен и доступен по ссылке http://rapid.akvnzm.ru/rapid/download/"+random);
+			        logger.info( "File "+fileName+" being uploaded." );
+			        
+			    } 
+			    catch (FileNotFoundException | SQLException fne) 
+			    {
+			        writer.println("You either did not specify a file to upload or are "
+			                + "trying to upload a file to a protected or nonexistent "
+			                + "location.");
+			        writer.println("<br/> ERROR: " + fne.getMessage());
 
-		            if ( session != null )
-		            {
-		            	progress = getProgressPercent((int) fileSize, readed);
-		            	logger.debug(progress);
-		            	session.setAttribute( "progress", progress );
-		            }
-		        }
-		        writer.println("New file " + fileName + " created at " + path);
-		        logger.info( "File "+fileName+" being uploaded." );
-		        
-		        int fileId = mysql.addFile( fileName, (int) fileSize, (String)session.getAttribute("login"), generateRandom(6) );
-		        
-		        logger.debug( Calendar.getInstance().get( Calendar.HOUR_OF_DAY ) );
-		        logger.debug( "echo 'rm " + path + "/" + fileName + "' | at now +" + hours + " minute" );
-		        
-		        String s = null;
-		        
-		        String command[] = {"/bin/bash", "-c", "/bin/echo \"rm " + path + "/" + fileName + " && wget -q --spider http://localhost:8080/rapid/delete/?id="+ fileId +"\" | at now +" + hours + " hours"};
-		        Process p = Runtime.getRuntime().exec(command);
-		        
-            	BufferedReader stdInput = new BufferedReader(new
-            			InputStreamReader(p.getInputStream()));
-	    
-            	BufferedReader stdError = new BufferedReader(new
-	                    InputStreamReader(p.getErrorStream()));
-	    
-				// read the output from the command
-				System.out.println("Here is the standard output of the command:\n");
-				while ((s = stdInput.readLine()) != null) {
-				    logger.debug(s);
-				}
-				    
-				// read any errors from the attempted command
-				System.out.println("Here is the standard error of the command (if any):\n");
-				while ((s = stdError.readLine()) != null) {
-					logger.error(s);
-				}
-		    } 
-		    catch (FileNotFoundException | SQLException fne) 
-		    {
-		        writer.println("You either did not specify a file to upload or are "
-		                + "trying to upload a file to a protected or nonexistent "
-		                + "location.");
-		        writer.println("<br/> ERROR: " + fne.getMessage());
-
-		        logger.error( "Problems during file upload. Error: " + fne.getMessage() );
-		    } 
-		    finally 
-		    {
-		    	progress = 0;
-		    	
-		        if (out != null) {
-		            out.close();
-		        }
-		        if (filecontent != null) {
-		            filecontent.close();
-		        }
-		        if (writer != null) {
-		            writer.close();
-		        }
-		    }
+			        logger.error( "Problems during file upload. Error: " + fne.getMessage() );
+			    } 
+			    finally 
+			    {
+			    	progress = 0;
+			    	
+			        if (out != null) {
+			            out.close();
+			        }
+			        if (filecontent != null) {
+			            filecontent.close();
+			        }
+			        if (writer != null) {
+			            writer.close();
+			        }
+			    }
+			}
 		}
 	}
 
