@@ -11,8 +11,8 @@ import org.apache.log4j.Logger;
 
 public class Ldap
 {
-	private final String host = "192.168.2.210";
-	private final String domain = "akvnzm";
+	private final String host = "192.168.1.100";
+	private final String domain = "test";
 	private final Logger logger = Logger.getLogger(Ldap.class);
 	
 	public boolean auth(String login, String password)
